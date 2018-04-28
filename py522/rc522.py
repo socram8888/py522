@@ -116,7 +116,7 @@ class RC522:
 					return None
 
 				if len(recv) == 0:
-					print('NO MATCH %s %i' % (anticol.hex(), goodcount))
+					# Tag has been removed and no matching tag remains
 					return None
 
 				oldgood = goodcount
@@ -132,12 +132,11 @@ class RC522:
 					anticol[2 + pos] = anticol[2 + pos] | recv[pos - oldgood // 8]
 
 			if anticol[2] ^ anticol[3] ^ anticol[4] ^ anticol[5] != anticol[6]:
-				print('Bad BCC')
+				# Bad BCC
 				return None
 
 			anticol[1] = 0x70
 			resp = self.transceive(anticol)
-			print('Resp: %s' % resp.hex())
 			if anticol[2] != 0x88 or ct == 3:
 				knownuid.extend(anticol[2:6])
 				return knownuid
@@ -165,8 +164,6 @@ class RC522:
 			cmd.append(cmd[2] ^ cmd[3] ^ cmd[4] ^ cmd[5])
 
 			resp = self.transceive(cmd)
-			print(resp)
-
 			ct = ct + 1
 
 	def send(self, request):
