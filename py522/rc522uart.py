@@ -3,9 +3,34 @@ from .rc522 import RC522
 import serial
 
 class RC522Uart(RC522):
+	BAUD_REG_VALUE = {
+		7200: 0xFA,
+		9600: 0xEB,
+		14400: 0xDA,
+		19200: 0xCB,
+		38400: 0xAB,
+		57600: 0x9A,
+		115200: 0x7A,
+		128000: 0x74,
+		230400: 0x5A,
+		460800: 0x3A,
+		921600: 0x1C,
+		1228800: 0x15
+	}
+
 	def __init__(self, port, speed=9600):
 		super().__init__()
 		self.port = serial.Serial(port, speed, timeout=1)
+
+	def reset(self):
+		super().reset()
+
+		# On reset, baud rate gets reset as well
+		self.port.baudrate = 9600
+
+	def change_serial_speed(self, new_speed):
+		self._regwrite(RC522.Reg.SerialSpeed, RC522Uart.BAUD_REG_VALUE[new_speed])
+		self.port.baudrate = new_speed
 
 	def _regread(self, reg):
 		return self._regreadbulk(reg)[0]
