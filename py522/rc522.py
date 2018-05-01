@@ -1,5 +1,7 @@
 
 import time
+from enum import Enum
+from .exceptions import NoReplyException, InvalidBCCException, ReaderException
 
 class RC522:
 	class Reg:
@@ -65,6 +67,12 @@ class RC522:
 	CmdMfAuth = 0xE
 	CmdSoftReset = 0xF
 
+	class Version(Enum):
+		UNKNOWN = 0
+		MFRC522_V1 = 1
+		MFRC522_V2 = 2
+		FM17522 = 3
+
 	def __init__(self):
 		self.collision = None
 		self._crc_enabled = None
@@ -79,7 +87,7 @@ class RC522:
 		self._run_command(RC522.CmdSoftReset)
 		time.sleep(0.05)
 		if self._regread(RC522.Reg.Command) & 0x10:
-			raise Exception('PCD has not left powerdown mode after reset')
+			raise ReaderException('PCD has not left powerdown mode after reset')
 
 		self._regwrite(RC522.Reg.TxASK, 0x40)
 		self._regwrite(RC522.Reg.Mode, 0x3D)
@@ -92,13 +100,10 @@ class RC522:
 	def scan(self, wakeup=False):
 		self._enable_crc(False)
 
-		try:
-			if wakeup:
-				self._transceive_bits(b'\x52', 7)
-			else:
-				self._transceive_bits(b'\x26', 7)
-		except:
-			return None
+		if wakeup:
+			self._transceive_bits(b'\x52', 7)
+		else:
+			self._transceive_bits(b'\x26', 7)
 
 		knownuid = bytearray()
 
@@ -110,14 +115,7 @@ class RC522:
 
 			while goodcount < 40:
 				anticol[1] = (2 + goodcount // 8) << 4 | (goodcount % 8)
-				try:
-					(recv, recvcol) = self._transceive_bits(anticol, 16 + goodcount, goodcount % 8)
-				except:
-					return None
-
-				if len(recv) == 0:
-					# Tag has been removed and no matching tag remains
-					return None
+				(recv, recvcol) = self._transceive_bits(anticol, 16 + goodcount, goodcount % 8)
 
 				oldgood = goodcount
 				if recvcol is not None:
@@ -131,9 +129,10 @@ class RC522:
 				for pos in range(oldgood // 8, (goodcount + 7) // 8):
 					anticol[2 + pos] = anticol[2 + pos] | recv[pos - oldgood // 8]
 
-			if anticol[2] ^ anticol[3] ^ anticol[4] ^ anticol[5] != anticol[6]:
-				# Bad BCC
-				return None
+			calculatedBcc = anticol[2] ^ anticol[3] ^ anticol[4] ^ anticol[5]
+			expectedBcc = anticol[6]
+			if calculatedBcc != expectedBcc:
+				raise InvalidBCCException(expected=expectedBcc, calculated=calculatedBcc)
 
 			anticol[1] = 0x70
 			resp = self.transceive(anticol)
@@ -191,6 +190,17 @@ class RC522:
 	def halt(self):
 		self.send(b'\x50\x00')
 
+	def get_version(self):
+		verid = self._regread(RC522.Reg.Version)
+		if verid == 0x91:
+			return RC522.Version.MFRC522_V1
+		if verid == 0x92:
+			return RC522.Version.MFRC522_V2
+		if verid == 0x88:
+			return RC522.Version.FM17522
+		print('Unknown version: %02X' % verid)
+		return RC522.Version.UNKNOWN
+
 	def _run_command(self, cmd):
 		rcvoff = 1
 		if cmd == RC522.CmdReceive or cmd == RC522.CmdTransceive or cmd == RC522.CmdMfAuth:
@@ -220,7 +230,7 @@ class RC522:
 		# Clear FIFO reg
 		self._regwrite(RC522.Reg.FIFOLevel, 0x80)
 
-		raise Exception("RX timeout")
+		raise NoReplyException()
 
 	def _wait_tx(self):
 		for x in range(1, 5):
@@ -230,7 +240,7 @@ class RC522:
 		# Clear FIFO reg
 		self._regwrite(RC522.Reg.FIFOLevel, 0x80)
 
-		raise Exception("TX timeout")
+		raise ReaderException('Timed out while waiting for datagram transmission')
 
 	def _transceive_bits(self, request, bitlen=None, rxalign=0):
 		if bitlen is not None:
