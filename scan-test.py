@@ -18,9 +18,9 @@ while True:
 	try:
 		uid = rc.scan()
 	except:
+		time.sleep(0.1)
 		continue
 
 	print("Found tag: %s" % uid.hex())
 	rc.halt()
-	time.sleep(0.1)
 
