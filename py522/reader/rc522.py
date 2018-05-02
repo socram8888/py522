@@ -1,7 +1,7 @@
 
 import time
 from enum import Enum
-from .exceptions import NoReplyException, InvalidBCCException, ReaderException
+from py522.exceptions import NoReplyException, InvalidBCCException, ReaderException
 
 class RC522:
 	class Reg:
