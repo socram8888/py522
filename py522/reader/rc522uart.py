@@ -26,7 +26,8 @@ class RC522Uart(RC522):
 		self.hard_reset_negated = False
 
 	def reset(self):
-		super().reset()
+		self.hard_reset()
+		self.soft_reset()
 
 		# On reset, baud rate gets reset as well
 		self.port.baudrate = 9600
@@ -37,8 +38,11 @@ class RC522Uart(RC522):
 		self.port.dtr = self.hard_reset_negated
 		time.sleep(0.01)
 
-	def change_serial_speed(self, new_speed):
-		self._regwrite(RC522.Reg.SerialSpeed, RC522Uart.BAUD_REG_VALUE[new_speed])
+	def change_baud_rate(self, new_speed):
+		reg_value = RC522Uart.BAUD_REG_VALUE.get(new_speed)
+		if reg_value == None:
+			raise ReaderException('Unsupported baudrate %s' % str(new_speed))
+		self._regwrite(RC522.Reg.SerialSpeed, reg_value)
 		self.port.baudrate = new_speed
 
 	def _regread(self, reg):

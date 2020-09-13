@@ -75,7 +75,8 @@ class RC522:
 
 	def __init__(self):
 		self.collision = None
-		self._crc_enabled = None
+		self._tx_crc_enabled = None
+		self._rx_crc_enabled = None
 
 	def antenna_on(self):
 		self._regwrite(RC522.Reg.TxControl, 0x83)
@@ -84,6 +85,9 @@ class RC522:
 		self._regwrite(RC522.Reg.TxControl, 0x80)
 
 	def reset(self):
+		self.soft_reset()
+
+	def soft_reset(self):
 		self._run_command(RC522.CmdSoftReset)
 		time.sleep(0.05)
 		if self._regread(RC522.Reg.Command) & 0x10:
@@ -128,6 +132,7 @@ class RC522:
 
 				for pos in range(oldgood // 8, (goodcount + 7) // 8):
 					anticol[2 + pos] = anticol[2 + pos] | recv[pos - oldgood // 8]
+
 
 			calculatedBcc = anticol[2] ^ anticol[3] ^ anticol[4] ^ anticol[5]
 			expectedBcc = anticol[6]
@@ -244,7 +249,6 @@ class RC522:
 
 	def _transceive_bits(self, request, bitlen=None, rxalign=0):
 		if bitlen is not None:
-			trailing_bits = 0
 			fullbytes = (bitlen + 7) // 8
 			request = request[0 : fullbytes]
 			trailing_bits = bitlen & 0x7
@@ -269,12 +273,24 @@ class RC522:
 
 		return (self._read_fifo(), col)
 
-	def _enable_crc(self, enabled):
-		if enabled != self._crc_enabled:
-			if enabled:
-				self._regwrite(RC522.Reg.RxMode, 0x80)
+	def _enable_crc(self, enable):
+		self._enable_tx_crc(enable)
+		self._enable_rx_crc(enable)
+
+	def _enable_tx_crc(self, enable):
+		enable = bool(enable)
+		if enable != self._tx_crc_enabled:
+			if enable:
 				self._regwrite(RC522.Reg.TxMode, 0x80)
 			else:
-				self._regwrite(RC522.Reg.RxMode, 0x00)
 				self._regwrite(RC522.Reg.TxMode, 0x00)
-			self._crc_enabled = enabled
+			self._tx_crc_enabled = enable
+
+	def _enable_rx_crc(self, enable):
+		enable = bool(enable)
+		if enable != self._rx_crc_enabled:
+			if enable:
+				self._regwrite(RC522.Reg.RxMode, 0x80)
+			else:
+				self._regwrite(RC522.Reg.RxMode, 0x00)
+			self._rx_crc_enabled = enable

@@ -9,7 +9,6 @@ if len(sys.argv) != 2:
 	sys.exit(1)
 
 rc = RC522Uart(sys.argv[1])
-rc.hard_reset()
 rc.reset()
 
 print("Reader version: %s" % rc.get_version())
