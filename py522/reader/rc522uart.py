@@ -50,17 +50,14 @@ class RC522Uart(RC522):
 
 	def _regreadbulk(self, reg, count=1):
 		assert(reg >= 0 and reg <= 0x3F)
-		req = bytes([reg | 0x80])
+		req = bytes([reg | 0x80]) * count
 
-		data = bytearray()
-		while len(data) < count:
-			if self.port.write(req) != 1:
-				raise ReaderException('Could not send read request')
+		if self.port.write(req) != len(req):
+			raise ReaderException('Could not send read request')
 
-			try:
-				data.extend(self.port.read())
-			except Exception as e:
-				raise ReaderException('Could not read register value') from e
+		data = self.port.read(count)
+		if len(data) != count:
+			raise ReaderException('Could not read register value')
 
 		#print('%s -> %s' % (RC522.Reg.name(reg), data.hex()))
 		return data
@@ -72,15 +69,15 @@ class RC522Uart(RC522):
 	def _regwritebulk(self, reg, data):
 		assert(reg >= 0 and reg <= 0x3F)
 		#print('%s <- %s' % (RC522.Reg.name(reg), data.hex()))
-		req = bytes([reg])
 
-		for pos in range(0, len(data)):
-			if self.port.write(req) != 1:
-				raise ReaderException('Could not send write request')
+		req = bytearray()
+		for b in data:
+			req.append(reg)
+			req.append(b)
 
-			ack = self.port.read()
-			if ack != req:
-				raise ReaderException('Incorrect write acknowledgement from PCD: expected %s, got %s' % (req, ack))
+		if self.port.write(req) != len(req):
+			raise ReaderException('Could not send write request')
 
-			if self.port.write(data[pos : pos + 1]) != 1:
-				raise ReaderException('Could not write register value')
+		ack = self.port.read(len(data))
+		if ack != bytes([reg]) * len(data):
+			raise ReaderException('Incorrect write acknowledgement from PCD')
