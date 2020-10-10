@@ -1,32 +1,24 @@
+#!/usr/bin/env python3
 
-import time
-from py522.rc522uart import RC522Uart
-from py522.ultralightc import UltralightC
+from py522.reader import RC522Uart
+from py522.tag import UltralightC
+import sys
 
-rc = RC522Uart('COM4')
-		
-rc.port.dtr = True
-time.sleep(0.1)
-rc.port.dtr = False
-time.sleep(0.1)
+if len(sys.argv) != 2:
+	print('Usage: %s <serial port>' % sys.argv[0], file=sys.stderr)
+	sys.exit(1)
 
+rc = RC522Uart(sys.argv[1])
 rc.reset()
 
-while True:
-	uid = rc.scan()
-	while uid != None:
-		rc.halt()
-		print(uid)
-		uid = rc.scan()
+print("Reader version: %s" % rc.get_version())
 
-	time.sleep(0.1)
+detected = rc.scan()
+print('Detected tag: %s' % detected.hex())
 
-#print(rc.scan()[0].hex())
-#rc.select(b'\x04\x5a\xf6\x62\xd5\x4b\x80')
+print('Version: %s' % rc.transceive(b'\x60').hex())
 
-#print('>>> Version: %s' % rc.transceive(b'\x60').hex())
+ul = UltralightC(rc)
+ul.authenticate(bytes.fromhex('49454D4B41455242214E4143554F5946'))
 
-#ul = UltralightC(rc)
-#ul.authenticate(bytes.fromhex('49454D4B41455242214E4143554F5946'))
-
-#print('Authentication suceeded!')
+print('Authentication suceeded!')
